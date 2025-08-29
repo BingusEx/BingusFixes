@@ -6,9 +6,9 @@ cmake_policy(VERSION 3.21...3.31)
 # #######################################################################################################################
 
 project(
-	Template
+	BingusFixes
 	VERSION 1.0.0.0
-	DESCRIPTION "Template"
+	DESCRIPTION "Badly made Engine Fixes"
 	LANGUAGES CXX
 )
 

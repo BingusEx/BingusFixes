@@ -20,7 +20,7 @@ namespace {
 	#define UDL "\033[4m"   //Underline
 
 	constexpr const char* PatternDefault = "[%Y-%m-%d %H:%M:%S.%e] [%l] [%s:%#] %v";
-	constexpr const char* PatternConsole = WHT "[" MAG "TPL" WHT "][%H:%M:%S.%e][%^%l%$][" YEL "%s:%#" WHT "]: %v" RST;
+	constexpr const char* PatternConsole = WHT "[" CYA "BiF" WHT "][%H:%M:%S.%e][%^%l%$][" YEL "%s:%#" WHT "]: %v" RST;
 
 }
 

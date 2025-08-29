@@ -1,5 +1,6 @@
 #include "Util/Logger/Logger.hpp"
 #include "Version.hpp"
+#include "Hooks/Fixes.hpp"
 
 namespace {
 
@@ -84,7 +85,10 @@ SKSEPluginLoad(const LoadInterface * a_SKSE) {
 	Init(a_SKSE);
 
 	logger::Initialize();
-	InitializeMessaging();
+	logger::SetLevel("Trace");
+	BingusFixes::Install();
+
+	//InitializeMessaging();
 
 	logger::info("SKSEPluginLoad OK");
 
@@ -96,5 +100,5 @@ SKSEPluginInfo(
 	.Name = Plugin::ModName,
 	.Author = "BingusEx",
 	.StructCompatibility = SKSE::StructCompatibility::Independent,
-	.RuntimeCompatibility = SKSE::VersionIndependence::AddressLibrary
+	.RuntimeCompatibility = SKSE::RUNTIME_SSE_1_6_1170
 );
