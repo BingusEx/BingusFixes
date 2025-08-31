@@ -4,9 +4,9 @@
 
 namespace BingusFixes {
 
-    struct hkbStateMachine_HashLookupFail_Fix final : Xbyak::CodeGenerator {
+    struct hkbStateMachine_Fix1 final : Xbyak::CodeGenerator {
 
-        hkbStateMachine_HashLookupFail_Fix(uintptr_t afterSite) {
+        hkbStateMachine_Fix1(uintptr_t afterSite) {
 
             // RAX currently = [lVar3 + 0xA0]
             test(rax, rax);
@@ -44,7 +44,7 @@ namespace BingusFixes {
 
             auto& tramp = SKSE::GetTrampoline();
 
-            hkbStateMachine_HashLookupFail_Fix th(afterSite);
+            hkbStateMachine_Fix1 th(afterSite);
             th.ready();
 
             void* mem = tramp.allocate(th.getSize());
@@ -58,38 +58,74 @@ namespace BingusFixes {
             constexpr uint8_t nops[3]{ 0x90, 0x90, 0x90 };
             REL::safe_write(site + 5, nops, sizeof(nops));
 
-            logger::info("Installed hkbStateMachine_HashLookupFail_Fix at {:X}", site);
+            logger::info("Installed hkbStateMachine_Fix1 at {:X}", site);
+
+        }
+
+    };
+
+    struct hkbStateMachine_Fix2 final : Xbyak::CodeGenerator {
+
+        hkbStateMachine_Fix2(uintptr_t afterSite) {
+
+
+            test(rax, rax);
+            jnz("do_load");
+
+            mov(eax, 0x80000000);  // uint32 return in EAX
+            add(rsp, 0x90);        // restore sp
+            pop(rbp);              // restore pushed rbp
+            ret();
+
+            L("do_load");
+            // Re-emit stolen bytes
+            mov(rcx, ptr[rax + 0x10]); // 48 8b 48 10
+            lea(rax, ptr[rcx + rdx * 8]); // 48 8d 04 d1
+
+            // Jump back after patched site
+            mov(rax, afterSite);
+            jmp(rax);
+        }
+
+        static void Install() {
+
+            // Same func as the null hashmap fix, crashes earlier than the above patch.
+            // Reproducable by using pandora (4.0.4) and doing "sae IdleForceDefaultState" while being in midair/jumping
+            // Nemesis / vanilla beh. appears to be fine and does not ctd.
+
+            // crash is at (140ada970 48 8b 48 10 MOV param_1,qword ptr [RAX + 0x10]) -> mov rcx,[rax+10h]
+            // lVar5 = *(longlong *)(*(longlong *)(lVar5 + 0xa0) + 0x10) + (longlong)param_3[1] * 0x48;
+            // rax is 0x0 at this point
+
+            // TODO find a way to cleanly reset the actor anim state.
+
+            REL::Relocation<std::uintptr_t> siteRel{ REL::ID(59373), 0x2d0 };
+            const auto site = siteRel.address();
+            const auto afterSite = site + 8; // we steal MOV(4) + LEA(4)
+
+            auto& tramp = SKSE::GetTrampoline();
+
+            hkbStateMachine_Fix2 th(afterSite);
+            th.ready();
+
+            void* mem = tramp.allocate(th.getSize());
+            auto   addr = reinterpret_cast<std::uintptr_t>(mem);
+            std::memcpy(mem, th.getCode(), th.getSize());
+
+            // 5-byte rel JMP -> thunk
+            tramp.write_branch<5>(site, addr);
+
+            // NOP the remaining 3 bytes of the 8-byte window
+            constexpr uint8_t nops[3]{ 0x90, 0x90, 0x90 };
+            REL::safe_write(site + 5, nops, sizeof(nops));
+
+            logger::info("Installed hkbStateMachine_Fix2 at {:X}", site);
 
         }
 
     };
 
     // TODO Dont do this.
-
-    // Same func as the null hashmap fix, crashes earlier than the above patch.
-    // Reproducable by using pandora (4.0.4) and doing "sae IdleForceDefaultState" while being in midair/jumping
-    // Nemesis appears to be fine and does not ctd.
-
-    // crash is at (140ada970 48 8b 48 10 MOV param_1,qword ptr [RAX + 0x10]) -> mov rcx,[rax+10h]
-	// lVar5 = *(longlong *)(*(longlong *)(lVar5 + 0xa0) + 0x10) + (longlong)param_3[1] * 0x48;
-    // rax is 0x0 at this point
-
-    struct hkbstatemachine_sub_140adcdf0_fix1 {
-
-        static void __fastcall thunk(RE::hkbStateMachine* a_this, char* unk1, void* unk2, char unk3) {
-
-            __try {
-                func(a_this, unk1, unk2, unk3);
-            }
-
-            __except (EXCEPTION_EXECUTE_HANDLER) {}
-
-        }
-
-        FUNCTYPE_DETOUR func;
-
-    };
-
 
     struct FUN_141161ac0_Fix1 {
 
@@ -113,10 +149,10 @@ namespace BingusFixes {
     inline void Install() {
 
         auto& Tramp = SKSE::GetTrampoline();
-        Tramp.create(96);
+        Tramp.create(128);
 
-        hkbStateMachine_HashLookupFail_Fix::Install();
-        Hooks::stl::write_detour<hkbstatemachine_sub_140adcdf0_fix1>(REL::RelocationID(NULL, 59383, NULL));
+        hkbStateMachine_Fix1::Install();
+        hkbStateMachine_Fix2::Install();
         Hooks::stl::write_call<FUN_141161ac0_Fix1>(REL::RelocationID(NULL, 89682, NULL), REL::VariantOffset(NULL, 0x21, NULL));
     }
 
