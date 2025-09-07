@@ -6,6 +6,7 @@
 #define FUNCTYPE_CALL static inline constinit REL::Relocation<decltype(thunk)>
 #define FUNCTYPE_VFUNC static inline constinit REL::Relocation<decltype(&thunk)>
 #define FUNCTYPE_VFUNC_UNIQUE static inline constinit REL::Relocation<decltype(&thunk<ID>)>
+#define ASM_JMPTARGET_PH 0xDEADBEEFDEADBEEF
 
 namespace Hooks::Internal {
 
@@ -205,5 +206,40 @@ namespace Hooks::stl {
 
 		logger::debug("Detour installed, Trampoline: 0x{:X}", addr, reinterpret_cast<std::uintptr_t>(T::func));
 	}
+
+	template <typename HookT>
+	static void write_xbyak_thunk(REL::Relocation<std::uintptr_t> a_Rel) {
+
+		logger::debug("Installing xbyak thunk {} at [0x{:X}] + {}", Internal::get_type_name<HookT>(), a_Rel.address(), HookT::bytesToPatch);
+
+		auto& Trampoline = SKSE::GetTrampoline();
+
+		const uintptr_t patchsite = a_Rel.address();
+		const uintptr_t afterSite = patchsite + HookT::bytesToPatch;
+
+		// Generate code
+		static HookT gen;
+		void* mem = Trampoline.allocate(gen.getSize());
+		std::memcpy(mem, gen.getCode(), gen.getSize());
+
+		// Patch placeholder
+		uintptr_t addr = reinterpret_cast<uintptr_t>(mem);
+		for (size_t i = 0; i < gen.getSize() - 8; i++) {
+			auto* p = reinterpret_cast<uint64_t*>(addr + i);
+			if (*p == ASM_JMPTARGET_PH) {
+				*p = afterSite;
+				break;
+			}
+		}
+
+		// Write trampoline
+		Trampoline.write_branch<5>(patchsite, addr);
+
+		// Fill remainder with NOPs
+		REL::safe_fill(patchsite + 5, 0x90, HookT::bytesToPatch - 5);
+
+		logger::debug("Xbyak thunk installed, jmpback at addr 0x{:X}", addr);
+	}
+	
 
 }
