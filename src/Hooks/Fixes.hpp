@@ -87,15 +87,48 @@ namespace BingusFixes {
 
     };
 
+
+
+    struct BSEffectShaderSub {
+
+        //AE ID: 107529 AE Offset: 0x0
+        //a2 is null
+        //happens thanks to the armorunlimited mod the chance is random but is related to
+        //membrane shaders/effect shaders.
+        //the pointer passed in a2 is probably a smart pointer or something else thats refcounted and managed by other threads.
+        //Simply checking if a2 is null is not enough as its possible for the property to be freed after the check has passed.
+        //need to implement an asm null guard for each individual use of the ptr because of this.
+        //the SEH exception handler is works but its "one of the x of all time" levels of a bad idea to do.
+
+        //Theory 2, The game has a ref counted pointer for the lighting property (or an object that contains a concrete implementation of it).
+        //When it wants to apply an effect shader on an armor piece in a slot that has virtual biped slots created by armorulimited,
+		//the game first handels the real slot, assumes the job is done and frees the object, but then when it tries to apply the effect shader on the extra biped slot the object has been alreadty freed.
+		//This free is done by another thread so its not possible to just detour an if check prologue.
+
+        static void __fastcall thunk(uint64_t* a1, BSLightingShaderProperty* a2, void* r8_0, void* a4, void* a3, NiAlphaProperty* a6, void* a7, void* a8, char a9) {
+            __try {
+                if (!a1 || !a2) {
+                    return;
+                }
+
+                func(a1, a2, r8_0, a4, a3, a6, a7, a8, a9);
+            }
+            __except (EXCEPTION_CONTINUE_EXECUTION) {}
+        }
+
+        FUNCTYPE_DETOUR func;
+
+    };
+
     inline void Install() {
 
         auto& Trampoline = SKSE::GetTrampoline();
-        Trampoline.create(192);
+        Trampoline.create(256);
 
         Hooks::stl::write_xbyak_thunk<ScaleformSub_NullGuard>(Relocation{ REL::ID(87792), 0x10f });
         Hooks::stl::write_xbyak_thunk<hkbStateMachine_NullGuard>(Relocation{ REL::ID(59373), 0x237 });
         Hooks::stl::write_xbyak_thunk<hkbStateMachine_NullGuard>(Relocation{ REL::ID(59373), 0x2d0 });
-
+        Hooks::stl::write_detour<BSEffectShaderSub>(RelocationID(NULL, 107529));
     }
 
 
